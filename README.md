@@ -26,7 +26,7 @@
 
 ## Install
 
-Download the latest `Markdown-x.y.z.dmg` from [Releases](https://github.com/abdyfranco/markdown-app/releases), open it and drag **Markdown** to **Applications**.
+Download the latest `Markdown-x.y.z.dmg` from [Releases](https://github.com/advandz/markdown-app/releases), open it and drag **Markdown** to **Applications**.
 
 Requires macOS 26 or later; the app runs natively on Apple silicon and Intel. It isn't notarized, so if macOS can't verify it, choose **Open Anyway** in **System Settings → Privacy & Security**.
 

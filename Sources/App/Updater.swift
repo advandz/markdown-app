@@ -101,7 +101,7 @@ private struct GitHubRelease: Decodable {
 @MainActor
 final class Updater: NSObject {
     static let shared = Updater()
-    static let repository = "abdyfranco/markdown-app"
+    static let repository = "advandz/markdown-app"
 
     private var isChecking = false
     private var pendingUpdate: AvailableUpdate?
