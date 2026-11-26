@@ -78,30 +78,19 @@ Translations live in `Support/Localization/App/<language>.lproj/Localizable.stri
 
 ## Release
 
-Updates are signed, so a forged update is never installed. The app installs a release only if its disk image is signed with the private key matching `MarkdownUpdatePublicKey` in `Support/App-Info.plist`.
+Updates are signed: the app only installs a disk image whose signature matches the public key built into it (`Sources/App/UpdateSigning.swift`), so a forged or tampered download is rejected.
 
-**Once:** create the signing key. It's stored in your login Keychain as "Markdown update signing key":
-
-```bash
-swift Tools/SignUpdate.swift generate
-```
-
-Put the public key it prints in `Support/App-Info.plist` as `MarkdownUpdatePublicKey`.
-
-Back up the private key: without it, installed copies can't verify later releases and won't update themselves. `swift Tools/SignUpdate.swift export` prints it for your password manager, and `swift Tools/SignUpdate.swift import` (reading it from standard input) restores it on another Mac.
-
-**Each release:**
-
-1. Set the version (`CFBundleShortVersionString` and `CFBundleVersion`) in `Support/App-Info.plist` and `Support/QuickLook-Info.plist`.
-2. Run `./build.sh`. It also signs the disk image, writing `build/Markdown-<version>.dmg.sig`.
-3. Tag and publish, attaching both files:
+1. One time: `swift Tools/sign-update.swift keygen` creates the private key in `~/.com.advandz.markdown/` (outside this repository) and prints the public key to put in `UpdateSigning.swift`. Back the key up and never commit it. Losing it means existing installs can't be updated automatically.
+2. Set the version (`CFBundleShortVersionString` and `CFBundleVersion`) in `Support/App-Info.plist` and `Support/QuickLook-Info.plist`.
+3. Run `./build.sh`. It builds the app and DMG and signs the DMG, writing `build/Markdown-<version>.dmg.sig`.
+4. Tag and publish, attaching **both** files:
 
    ```bash
    git tag v1.0.1 && git push origin v1.0.1
    gh release create v1.0.1 build/Markdown-1.0.1.dmg build/Markdown-1.0.1.dmg.sig --title "Markdown 1.0.1"
    ```
 
-The app checks the latest release each time it starts, and once a day while it stays open. It installs the release only when the signature matches.
+The app checks the latest release each time it starts, and once a day while it stays open, and offers to install its DMG after checking the signature. A release without the `.sig` file isn't installed automatically; the app sends people to the release page instead.
 
 ## License
 

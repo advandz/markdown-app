@@ -6,7 +6,6 @@
 //
 
 import AppKit
-import CryptoKit
 import Security
 import SwiftUI
 
@@ -61,44 +60,9 @@ struct AvailableUpdate {
     let notes: String
     /// The disk image attached to the tag's GitHub release, if there is one.
     let downloadURL: URL?
-    /// The disk image's Ed25519 signature, published next to it as `<name>.dmg.sig`.
-    let signature: Data?
+    /// The signature file (`<image>.sig`) attached next to it. Without one, nothing is installed.
+    let signatureURL: URL?
     let pageURL: URL
-
-    /// Only an update that can be checked against the developer's key installs by itself.
-    var canVerify: Bool { downloadURL != nil && signature != nil && UpdateSignature.publicKey != nil }
-}
-
-/// Release disk images are signed with the developer's Ed25519 key
-/// (`Tools/SignUpdate.swift`, which keeps the private key in the Keychain).
-/// The app carries the public key, so an update that wasn't signed with that
-/// private key is never installed, whoever controls the download.
-enum UpdateSignature {
-    /// The public key in Info.plist (`MarkdownUpdatePublicKey`), base64-encoded.
-    static var publicKey: Data? {
-        (Bundle.main.object(forInfoDictionaryKey: "MarkdownUpdatePublicKey") as? String).flatMap(decodeKey)
-    }
-
-    static func decodeKey(_ base64: String) -> Data? {
-        guard let data = Data(base64Encoded: base64.trimmingCharacters(in: .whitespacesAndNewlines)),
-              (try? Curve25519.Signing.PublicKey(rawRepresentation: data)) != nil else { return nil }
-        return data
-    }
-
-    /// A `.sig` file's contents: the base64 signature on one line.
-    static func decodeSignature(_ text: Data) -> Data? {
-        guard text.count <= 1024, let string = String(data: text, encoding: .utf8),
-              let signature = Data(base64Encoded: string.trimmingCharacters(in: .whitespacesAndNewlines)),
-              signature.count == 64 else { return nil }
-        return signature
-    }
-
-    /// Whether `file` was signed with the private key matching `publicKey`.
-    static func isValid(_ signature: Data, of file: URL, publicKey: Data) -> Bool {
-        guard let key = try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey),
-              let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { return false }
-        return key.isValidSignature(signature, for: data)
-    }
 }
 
 enum UpdateError: LocalizedError {
@@ -235,34 +199,18 @@ final class Updater: NSObject {
 
         let encodedTag = release.tagName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? release.tagName
         let dmgAsset = release.assets.first { $0.name.lowercased().hasSuffix(".dmg") }
-        let dmg = dmgAsset.map(\.browserDownloadURL).flatMap { Self.isTrusted($0) ? $0 : nil }
+        let sigAsset = dmgAsset.flatMap { dmg in release.assets.first { $0.name == dmg.name + ".sig" } }
         let page = release.htmlURL
             ?? URL(string: "https://github.com/\(Self.repository)/releases/tag/\(encodedTag)")!
-
-        // The signature is only worth fetching for an update that would be offered.
-        var signature: Data?
-        if version > .current, let dmgAsset,
-           let sigAsset = release.assets.first(where: { $0.name == dmgAsset.name + ".sig" }),
-           Self.isTrusted(sigAsset.browserDownloadURL) {
-            signature = await fetchSignature(sigAsset.browserDownloadURL)
-        }
 
         return AvailableUpdate(
             version: version,
             tag: release.tagName,
             notes: release.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            downloadURL: dmg,
-            signature: signature,
+            downloadURL: dmgAsset.map(\.browserDownloadURL).flatMap { Self.isTrusted($0) ? $0 : nil },
+            signatureURL: sigAsset.map(\.browserDownloadURL).flatMap { Self.isTrusted($0) ? $0 : nil },
             pageURL: page
         )
-    }
-
-    private func fetchSignature(_ url: URL) async -> Data? {
-        var request = URLRequest(url: url, timeoutInterval: 20)
-        request.setValue("Markdown/\(AppVersion.current)", forHTTPHeaderField: "User-Agent")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return UpdateSignature.decodeSignature(data)
     }
 
     /// Fetches and decodes a feed resource; nil when it doesn't exist (no release yet).
@@ -298,7 +246,7 @@ final class Updater: NSObject {
         NSApp.activate()
         // Unsigned or unverifiable updates are offered as a download page instead,
         // where macOS checks what the user downloads.
-        let canInstall = update.canVerify && UpdateInstaller.canReplaceRunningApp
+        let canInstall = update.downloadURL != nil && update.signatureURL != nil && UpdateInstaller.canReplaceRunningApp
 
         let alert = NSAlert()
         alert.icon = NSApp.applicationIconImage
@@ -448,12 +396,37 @@ final class UpdateInstaller: NSObject {
         return fm.isWritableFile(atPath: app.deletingLastPathComponent().path) && fm.isWritableFile(atPath: path)
     }
 
+    /// The release's signature, fetched before the disk image is downloaded.
+    private var signature = ""
+
     func start() {
-        guard let url = update.downloadURL else { return }
+        guard let url = update.downloadURL, let signatureURL = update.signatureURL else { return }
         showWindow()
         let version = update.version.description
         progress.message = String(localized: "Downloading Markdown \(version)…")
+        Task {
+            do {
+                signature = try await Self.fetchSignature(signatureURL)
+            } catch {
+                fail(UpdateError.invalidDownload(String(localized: "The downloaded update isn't signed by Markdown's developer.")))
+                return
+            }
+            guard window != nil else { return }   // cancelled meanwhile
+            beginDownload(url)
+        }
+    }
 
+    /// The signature file is a short base64 line.
+    nonisolated private static func fetchSignature(_ url: URL) async throws -> String {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
+        request.setValue("Markdown/\(AppVersion.current)", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200, data.count < 1024,
+              let text = String(data: data, encoding: .utf8) else { throw UpdateError.server(0) }
+        return text
+    }
+
+    private func beginDownload(_ url: URL) {
         try? FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
         let destination = workDirectory.appendingPathComponent("Markdown-\(update.version).dmg")
 
@@ -514,7 +487,7 @@ final class UpdateInstaller: NSObject {
             let bundleID = Bundle.main.bundleIdentifier ?? ""
             let version = update.version
             let work = workDirectory
-            let signature = update.signature
+            let signature = signature
             Task.detached {
                 do {
                     let staged = try Self.stage(dmg: dmg, signature: signature, work: work, version: version,
@@ -529,12 +502,11 @@ final class UpdateInstaller: NSObject {
 
     /// Checks the image's signature, mounts it, checks the app inside and copies
     /// it next to the running app (same volume, so the final swap is a quick rename).
-    nonisolated private static func stage(dmg: URL, signature: Data?, work: URL, version: AppVersion,
+    nonisolated private static func stage(dmg: URL, signature: String, work: URL, version: AppVersion,
                                           bundleID: String, target: URL) throws -> URL {
-        // First of all, and before anything inside it is touched: the disk image
-        // must be signed with the developer's key that this app carries.
-        guard let signature, let publicKey = UpdateSignature.publicKey,
-              UpdateSignature.isValid(signature, of: dmg, publicKey: publicKey) else {
+        // Before anything opens the image: it must carry a valid signature from our
+        // key, for this version (see UpdateSigning).
+        guard UpdateSigning.verify(file: dmg, version: version.description, signature: signature) else {
             throw UpdateError.invalidDownload(String(localized: "The downloaded update isn't signed by Markdown's developer."))
         }
 

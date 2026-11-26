@@ -127,16 +127,14 @@ hdiutil create -volname "$APP_NAME $VERSION" -srcfolder "$STAGE" \
 hdiutil verify "$DMG" >/dev/null
 echo "✓ Packed $DMG"
 
-# Update signature. Installed copies only install an update whose disk image is
-# signed with the key matching MarkdownUpdatePublicKey (see Tools/SignUpdate.swift).
+# Sign the image for the updater (the app only installs images signed with this key).
+# The private key lives outside the repo; see Tools/sign-update.swift.
 rm -f "$DMG.sig"
-PUBLIC_KEY="$(/usr/libexec/PlistBuddy -c 'Print :MarkdownUpdatePublicKey' Support/App-Info.plist 2>/dev/null || true)"
-if [[ -z "$PUBLIC_KEY" ]]; then
-  echo "  No MarkdownUpdatePublicKey in Support/App-Info.plist: this build won't install updates by itself." >&2
-elif swift Tools/SignUpdate.swift sign "$DMG" --expect "$PUBLIC_KEY" >/dev/null; then
+if [ -f "${MARKDOWN_APP_SIGNING_KEY:-$HOME/.com.advandz.markdown/update-signing.key}" ]; then
+  swift Tools/sign-update.swift sign "$DMG" "$VERSION" >/dev/null
   echo "✓ Signed $DMG.sig"
 else
-  echo "  $DMG is unsigned, so installed copies won't install it as an update." >&2
+  echo "! No update signing key: $DMG.sig not created. Releases without it can't be installed by the updater." >&2
 fi
 
 if [[ "${1:-}" == "install" || "${1:-}" == "run" ]]; then

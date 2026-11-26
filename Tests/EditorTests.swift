@@ -125,29 +125,26 @@ enum EditorTests {
 
         print("Update signatures")
         let signingKey = Curve25519.Signing.PrivateKey()
-        let publicKey = signingKey.publicKey.rawRepresentation
+        let testKey = signingKey.publicKey.rawRepresentation.base64EncodedString()
         let dmgFile = FileManager.default.temporaryDirectory.appendingPathComponent("MarkdownTests-\(UUID().uuidString).dmg")
-        let imageData = Data((0..<4096).map { UInt8($0 % 251) })
+        let imageData = Data((0..<3_000_000).map { UInt8($0 % 251) })   // several hashing chunks
         try? imageData.write(to: dmgFile)
         defer { try? FileManager.default.removeItem(at: dmgFile) }
-        let signature = try! signingKey.signature(for: imageData)
-        check("genuine update verifies", UpdateSignature.isValid(signature, of: dmgFile, publicKey: publicKey))
-        var tampered = imageData; tampered[100] ^= 0xFF
+        let hash = SHA256.hash(data: imageData).map { String(format: "%02x", $0) }.joined()
+        let signature = try! signingKey.signature(for: UpdateSigning.message(version: "1.0.1", sha256: hash)).base64EncodedString()
+        check("genuine update verifies", UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: signature, publicKey: testKey))
+        check("signature with a newline verifies", UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: signature + "\n", publicKey: testKey))
+        check("other version rejected", !UpdateSigning.verify(file: dmgFile, version: "1.0.2", signature: signature, publicKey: testKey))
+        check("other key rejected", !UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: signature,
+                                                          publicKey: Curve25519.Signing.PrivateKey().publicKey.rawRepresentation.base64EncodedString()))
+        check("app's own key rejects a test signature", !UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: signature))
+        check("empty or garbage rejected", !UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: "", publicKey: testKey)
+              && !UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: "not base64!!", publicKey: testKey))
+        var tampered = imageData; tampered[2_500_000] ^= 0xFF
         try? tampered.write(to: dmgFile)
-        check("tampered update refused", !UpdateSignature.isValid(signature, of: dmgFile, publicKey: publicKey))
-        try? imageData.write(to: dmgFile)
-        let otherKey = Curve25519.Signing.PrivateKey()
-        check("update signed by another key refused",
-              !UpdateSignature.isValid(try! otherKey.signature(for: imageData), of: dmgFile, publicKey: publicKey))
-        let sigFile = Data((signature.base64EncodedString() + "\n").utf8)
-        check(".sig file decodes", UpdateSignature.decodeSignature(sigFile) == signature)
-        check("malformed .sig refused", UpdateSignature.decodeSignature(Data("not a signature".utf8)) == nil
-              && UpdateSignature.decodeSignature(Data(String(repeating: "A", count: 2000).utf8)) == nil)
-        check("public key decodes", UpdateSignature.decodeKey(publicKey.base64EncodedString()) == publicKey
-              && UpdateSignature.decodeKey("short") == nil)
-        let unsigned = AvailableUpdate(version: AppVersion("9.9.9")!, tag: "v9.9.9", notes: "",
-                                       downloadURL: URL(string: release)!, signature: nil, pageURL: URL(string: release)!)
-        check("unsigned update isn't installable", !unsigned.canVerify)
+        check("changed file rejected", !UpdateSigning.verify(file: dmgFile, version: "1.0.1", signature: signature, publicKey: testKey))
+        check("compiled-in key is valid", Data(base64Encoded: UpdateSigning.publicKey)
+              .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) } != nil)
 
         print("Text encodings")
         let latin1 = "# Café crème\n"
