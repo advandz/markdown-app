@@ -21,7 +21,7 @@
 - **Search** across the editor and the preview, from the toolbar
 - **Export as PDF** or HTML, and print
 - **QuickLook**: press Space on a `.md` file in Finder to see it rendered
-- **Automatic updates** from this repository's releases
+- **Automatic, signed updates** from this repository's releases
 - In English, Spanish, French, German, Italian, Portuguese (Brazil), Japanese, Korean and Chinese (Simplified), following your Mac's language
 
 ## Install
@@ -78,16 +78,30 @@ Translations live in `Support/Localization/App/<language>.lproj/Localizable.stri
 
 ## Release
 
+Updates are signed, so a forged update is never installed. The app installs a release only if its disk image is signed with the private key matching `MarkdownUpdatePublicKey` in `Support/App-Info.plist`.
+
+**Once:** create the signing key. It's stored in your login Keychain as "Markdown update signing key":
+
+```bash
+swift Tools/SignUpdate.swift generate
+```
+
+Put the public key it prints in `Support/App-Info.plist` as `MarkdownUpdatePublicKey`.
+
+Back up the private key: without it, installed copies can't verify later releases and won't update themselves. `swift Tools/SignUpdate.swift export` prints it for your password manager, and `swift Tools/SignUpdate.swift import` (reading it from standard input) restores it on another Mac.
+
+**Each release:**
+
 1. Set the version (`CFBundleShortVersionString` and `CFBundleVersion`) in `Support/App-Info.plist` and `Support/QuickLook-Info.plist`.
-2. Run `./build.sh`.
-3. Tag and publish, attaching the DMG:
+2. Run `./build.sh`. It also signs the disk image, writing `build/Markdown-<version>.dmg.sig`.
+3. Tag and publish, attaching both files:
 
    ```bash
    git tag v1.0.1 && git push origin v1.0.1
-   gh release create v1.0.1 build/Markdown-1.0.1.dmg --title "Markdown 1.0.1"
+   gh release create v1.0.1 build/Markdown-1.0.1.dmg build/Markdown-1.0.1.dmg.sig --title "Markdown 1.0.1"
    ```
 
-The app finds the newest version tag and offers to install the DMG attached to its release.
+The app checks the latest release each time it starts, and once a day while it stays open. It installs the release only when the signature matches.
 
 ## License
 

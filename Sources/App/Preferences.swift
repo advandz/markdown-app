@@ -77,6 +77,7 @@ enum Preferences {
     static let checkForUpdates = "checkForUpdates"
     static let lastUpdateCheck = "lastUpdateCheck"
     static let skippedVersion = "skippedVersion"
+    static let loadRemoteImages = "loadRemoteImages"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -88,7 +89,14 @@ enum Preferences {
             checkSpelling: true,
             statusStyle: 0,
             checkForUpdates: true,
+            loadRemoteImages: true,
         ])
+    }
+
+    /// Whether the preview and PDF export show images from the web (badges and
+    /// the like). Off, opening a document never contacts another server.
+    static var loadsRemoteImages: Bool {
+        UserDefaults.standard.bool(forKey: loadRemoteImages)
     }
 
     static var currentFont: EditorFont {

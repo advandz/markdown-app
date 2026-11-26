@@ -35,8 +35,10 @@ final class PrintRenderer: NSObject, WKNavigationDelegate {
     }
 
     /// Loads the page and waits until it (and its images) finished loading.
-    /// `baseURL` should come from `LocalResources.baseURL(for:)`.
-    func load(html: String, baseURL: URL) async throws {
+    /// `baseURL` should come from `LocalResources.baseURL(for:)`; local files
+    /// are served from inside `root` only (see `DocumentFolder`).
+    func load(html: String, baseURL: URL, root: URL?) async throws {
+        LocalResources.handler.allow(root, for: webView)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             loadContinuation = continuation
             webView.loadHTMLString(html, baseURL: baseURL)
@@ -73,7 +75,10 @@ final class PrintRenderer: NSObject, WKNavigationDelegate {
         loadContinuation = nil
     }
 
+    /// Only the page itself loads: no frames, redirects or links to other pages,
+    /// so nothing from elsewhere ends up in the PDF.
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
-        navigationAction.navigationType == .linkActivated ? .cancel : .allow
+        guard navigationAction.navigationType != .linkActivated, let url = navigationAction.request.url else { return .cancel }
+        return url.scheme == LocalResources.scheme || url.scheme == "about" ? .allow : .cancel
     }
 }

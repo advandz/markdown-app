@@ -127,11 +127,24 @@ hdiutil create -volname "$APP_NAME $VERSION" -srcfolder "$STAGE" \
 hdiutil verify "$DMG" >/dev/null
 echo "✓ Packed $DMG"
 
+# Update signature. Installed copies only install an update whose disk image is
+# signed with the key matching MarkdownUpdatePublicKey (see Tools/SignUpdate.swift).
+rm -f "$DMG.sig"
+PUBLIC_KEY="$(/usr/libexec/PlistBuddy -c 'Print :MarkdownUpdatePublicKey' Support/App-Info.plist 2>/dev/null || true)"
+if [[ -z "$PUBLIC_KEY" ]]; then
+  echo "  No MarkdownUpdatePublicKey in Support/App-Info.plist: this build won't install updates by itself." >&2
+elif swift Tools/SignUpdate.swift sign "$DMG" --expect "$PUBLIC_KEY" >/dev/null; then
+  echo "✓ Signed $DMG.sig"
+else
+  echo "  $DMG is unsigned, so installed copies won't install it as an update." >&2
+fi
+
 if [[ "${1:-}" == "install" || "${1:-}" == "run" ]]; then
   DEST="$HOME/Applications/$APP_NAME.app"
   echo "› Installing to $DEST"
   mkdir -p "$HOME/Applications"
-  pkill -x Markdown 2>/dev/null || true
+  # Quit only the copy being replaced; other copies (say, in /Applications) keep running.
+  pkill -f "^$DEST/Contents/MacOS/$APP_NAME( |\$)" 2>/dev/null || true
   rm -rf "$DEST"
   ditto "$APP" "$DEST"
   "$LSREGISTER" -f -R "$DEST"

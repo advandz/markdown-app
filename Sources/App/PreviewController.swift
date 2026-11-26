@@ -18,6 +18,7 @@ final class PreviewController: NSObject, WKNavigationDelegate {
     private var baseURL: URL?
     private var currentHTML = ""
     private var isLoaded = false
+    private var remoteImages = Preferences.loadsRemoteImages
 
     var zoom: CGFloat = 1 {
         didSet { if webView.pageZoom != zoom { webView.pageZoom = zoom } }
@@ -53,7 +54,12 @@ final class PreviewController: NSObject, WKNavigationDelegate {
         super.init()
 
         webView.navigationDelegate = self
-        webView.setValue(false, forKey: "drawsBackground")
+        // Transparent until the page paints, so dark mode doesn't flash white. This
+        // is a private WebKit setting: only use it while WebKit still has it.
+        if webView.responds(to: NSSelectorFromString("_setDrawsBackground:"))
+            || webView.responds(to: NSSelectorFromString("setDrawsBackground:")) {
+            webView.setValue(false, forKey: "drawsBackground")
+        }
         webView.allowsMagnification = true
         webView.allowsBackForwardNavigationGestures = false
         webView.setAccessibilityLabel(String(localized: "Preview"))
@@ -63,8 +69,17 @@ final class PreviewController: NSObject, WKNavigationDelegate {
     private func loadShell() {
         isLoaded = false
         let base = LocalResources.baseURL(for: baseURL)
-        let page = PreviewTheme.page(body: currentHTML, baseURL: base, extraCSS: Self.appCSS)
+        LocalResources.handler.allow(baseURL.map(DocumentFolder.root(for:)), for: webView)
+        let page = PreviewTheme.page(body: currentHTML, baseURL: base, extraCSS: Self.appCSS,
+                                     policy: .app(remoteImages: remoteImages))
         webView.loadHTMLString(page, baseURL: base)
+    }
+
+    /// Settings › Load remote images. The policy is part of the page, so it reloads.
+    func setRemoteImages(_ allowed: Bool) {
+        guard allowed != remoteImages else { return }
+        remoteImages = allowed
+        loadShell()
     }
 
     // MARK: Content
@@ -161,6 +176,8 @@ final class PreviewController: NSObject, WKNavigationDelegate {
         return .cancel
     }
 
+    /// Follows a clicked link. See `LinkPolicy`: nothing a document links to is
+    /// launched or run without the user seeing it first.
     private func open(_ url: URL) {
         if url.isFileURL {
             let base = (baseURL ?? FileManager.default.homeDirectoryForCurrentUser).standardizedFileURL.path
@@ -169,12 +186,38 @@ final class PreviewController: NSObject, WKNavigationDelegate {
                 run("var t=document.getElementById(\(Self.json(fragment)));if(t){t.scrollIntoView({behavior:'smooth',block:'start'});}")
                 return
             }
-            let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd", "mkdn", "mdtext"]
-            if markdownExtensions.contains(url.pathExtension.lowercased()) {
-                NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
-                return
-            }
         }
-        NSWorkspace.shared.open(url)
+        switch LinkPolicy.action(for: url) {
+        case .open, .openFile:
+            NSWorkspace.shared.open(url)
+        case .openDocument:
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+        case .reveal:
+            if FileManager.default.fileExists(atPath: url.path) {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } else {
+                NSSound.beep()
+            }
+        case .confirm:
+            confirmOpening(url)
+        case .ignore:
+            break
+        }
+    }
+
+    private func confirmOpening(_ url: URL) {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Open this link in another app?")
+        alert.informativeText = url.absoluteString
+        alert.addButton(withTitle: String(localized: "Open"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        let respond: (NSApplication.ModalResponse) -> Void = { response in
+            if response == .alertFirstButtonReturn { NSWorkspace.shared.open(url) }
+        }
+        if let window = webView.window {
+            alert.beginSheetModal(for: window, completionHandler: respond)
+        } else {
+            respond(alert.runModal())
+        }
     }
 }

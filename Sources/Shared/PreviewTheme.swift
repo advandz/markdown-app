@@ -11,9 +11,40 @@ import Foundation
 /// shared by the app's preview and the QuickLook extension.
 enum PreviewTheme {
 
-    /// A complete HTML document wrapping a rendered body.
-    static func page(body: String, title: String = "", baseURL: URL? = nil, extraCSS: String = "") -> String {
-        var head = """
+    /// What a page may load. Documents can contain raw HTML, so a rendered page
+    /// never runs scripts, embeds other pages or submits forms, and only loads
+    /// files the context allows.
+    enum ContentPolicy: Equatable {
+        /// The app's preview and PDF export: files near the document (served by
+        /// the app through `mdpreview:`), plus web images when allowed.
+        case app(remoteImages: Bool)
+        /// QuickLook: only the images attached to the preview.
+        case quickLook
+
+        var header: String {
+            switch self {
+            case .app(let remoteImages):
+                let images = "mdpreview: data:" + (remoteImages ? " https: http:" : "")
+                return "default-src 'none'; img-src \(images); media-src mdpreview: data:; "
+                    + "font-src mdpreview: data:; style-src 'unsafe-inline' mdpreview:; "
+                    + "object-src 'none'; frame-src 'none'; form-action 'none'; base-uri mdpreview:"
+            case .quickLook:
+                return "default-src 'none'; img-src cid: data:; media-src cid: data:; font-src data:; "
+                    + "style-src 'unsafe-inline'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'"
+            }
+        }
+    }
+
+    /// A complete HTML document wrapping a rendered body. Pass `policy` for
+    /// every page that's displayed; exported HTML goes without one.
+    static func page(body: String, title: String = "", baseURL: URL? = nil, extraCSS: String = "",
+                     policy: ContentPolicy? = nil) -> String {
+        var head = ""
+        if let policy {
+            // First, so it governs everything after it, including <base>.
+            head += "<meta http-equiv=\"Content-Security-Policy\" content=\"\(policy.header)\">\n"
+        }
+        head += """
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">

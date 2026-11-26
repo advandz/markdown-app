@@ -82,12 +82,14 @@
 "Link" = "Link";
 "link" = "link";
 "Link…" = "Link…";
+"Load remote images" = "Load remote images";
 "Make Default" = "Make Default";
 "Make Lower Case" = "Make Lower Case";
 "Make Upper Case" = "Make Upper Case";
 "Markdown %@ is available. You have %@." = "Markdown %@ is available. You have %@.";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done.";
 "Markdown %@ is the newest version available." = "Markdown %@ is the newest version available.";
+"Markdown %@ will be installed when you quit Markdown." = "Markdown %@ will be installed when you quit Markdown.";
 "Markdown editor" = "Markdown editor";
 "Markdown Guide" = "Markdown Guide";
 "Minimize" = "Minimize";
@@ -98,9 +100,11 @@
 "Not checked yet" = "Not checked yet";
 "Nothing to preview yet" = "Nothing to preview yet";
 "Numbered List" = "Numbered List";
+"Open" = "Open";
 "Open files in" = "Open files in";
 "Open GitHub" = "Open GitHub";
 "Open Markdown files in this app with a double-click." = "Open Markdown files in this app with a double-click.";
+"Open this link in another app?" = "Open this link in another app?";
 "Open…" = "Open…";
 "Outdent" = "Outdent";
 "Page Setup…" = "Page Setup…";
@@ -110,6 +114,7 @@
 "Print…" = "Print…";
 "Quick Look previews" = "Quick Look previews";
 "Quit %@" = "Quit %@";
+"Quit and Install" = "Quit and Install";
 "Quote" = "Quote";
 "Redo" = "Redo";
 "Rename…" = "Rename…";
@@ -138,8 +143,11 @@
 "System" = "System";
 "text" = "text";
 "The downloaded app is version %@, not %@." = "The downloaded app is version %@, not %@.";
+"The downloaded app isn't signed by the same developer." = "The downloaded app isn't signed by the same developer.";
 "The downloaded app's code signature isn't valid." = "The downloaded app's code signature isn't valid.";
 "The downloaded disk image doesn't contain Markdown." = "The downloaded disk image doesn't contain Markdown.";
+"The downloaded update isn't signed by Markdown's developer." = "The downloaded update isn't signed by Markdown's developer.";
+"The update is ready to install" = "The update is ready to install";
 "Transformations" = "Transformations";
 "Undo" = "Undo";
 "unknown" = "unknown";

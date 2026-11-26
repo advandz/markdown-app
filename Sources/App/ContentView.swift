@@ -101,7 +101,6 @@ private struct StatusPill: View {
 private struct SplitDivider: View {
     @Binding var fraction: CGFloat
     let totalWidth: CGFloat
-    @State private var isHovering = false
 
     var body: some View {
         Rectangle()
@@ -111,11 +110,8 @@ private struct SplitDivider: View {
                 Color.clear
                     .frame(width: 9)
                     .contentShape(Rectangle())
-                    .onHover { hovering in
-                        guard hovering != isHovering else { return }
-                        isHovering = hovering
-                        if hovering { NSCursor.columnResize.push() } else { NSCursor.pop() }
-                    }
+                    // SwiftUI owns the cursor, so it can't stick when the divider goes away mid-hover.
+                    .pointerStyle(.columnResize)
                     .gesture(
                         DragGesture(minimumDistance: 1, coordinateSpace: .global)
                             .onChanged { value in

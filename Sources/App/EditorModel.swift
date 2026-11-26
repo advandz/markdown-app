@@ -252,6 +252,7 @@ final class EditorModel {
         appliedPreferences = current
         textView.applyPreferences()
         preview.zoom = Preferences.currentFontSize / 14
+        preview.setRemoteImages(current.remoteImages)
         if !matches.isEmpty { textView.highlightMatches(matches) }
     }
 
@@ -295,6 +296,7 @@ struct EditorPreferences: Equatable {
     var size: CGFloat
     var limitLineWidth: Bool
     var checkSpelling: Bool
+    var remoteImages: Bool
 
     static var current: EditorPreferences {
         let defaults = UserDefaults.standard
@@ -302,7 +304,8 @@ struct EditorPreferences: Equatable {
             font: Preferences.currentFont,
             size: Preferences.currentFontSize,
             limitLineWidth: defaults.bool(forKey: Preferences.limitLineWidth),
-            checkSpelling: defaults.bool(forKey: Preferences.checkSpelling)
+            checkSpelling: defaults.bool(forKey: Preferences.checkSpelling),
+            remoteImages: Preferences.loadsRemoteImages
         )
     }
 }

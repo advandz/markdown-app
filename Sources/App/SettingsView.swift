@@ -22,6 +22,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.checkSpelling) private var checkSpelling = true
     @AppStorage(Preferences.openMode) private var openMode = ViewMode.preview.rawValue
     @AppStorage(Preferences.showWordCount) private var showWordCount = true
+    @AppStorage(Preferences.loadRemoteImages) private var loadRemoteImages = true
     @AppStorage(Preferences.checkForUpdates) private var checkForUpdates = true
     @AppStorage(Preferences.lastUpdateCheck) private var lastUpdateCheck = 0.0
     @State private var isDefaultApp = false
@@ -72,6 +73,7 @@ struct SettingsView: View {
                     ForEach(ViewMode.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 Toggle("Show word count", isOn: $showWordCount)
+                Toggle("Load remote images", isOn: $loadRemoteImages)
             }
 
             Section {

@@ -82,12 +82,14 @@
 "Link" = "リンク";
 "link" = "リンク";
 "Link…" = "リンク…";
+"Load remote images" = "リモート画像を読み込む";
 "Make Default" = "デフォルトにする";
 "Make Lower Case" = "小文字にする";
 "Make Upper Case" = "大文字にする";
 "Markdown %@ is available. You have %@." = "Markdown %1$@が利用可能です。現在のバージョンは%2$@です。";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %1$@が利用可能です。現在のバージョンは%2$@です。今すぐインストールしますか？完了するとMarkdownが再起動します。";
 "Markdown %@ is the newest version available." = "Markdown %@は利用可能な最新バージョンです。";
+"Markdown %@ will be installed when you quit Markdown." = "Markdownを終了すると、Markdown %@がインストールされます。";
 "Markdown editor" = "Markdownエディタ";
 "Markdown Guide" = "Markdownガイド";
 "Minimize" = "しまう";
@@ -98,9 +100,11 @@
 "Not checked yet" = "未確認";
 "Nothing to preview yet" = "プレビューする内容はまだありません";
 "Numbered List" = "番号付きリスト";
+"Open" = "開く";
 "Open files in" = "ファイルを開くときの表示";
 "Open GitHub" = "GitHubを開く";
 "Open Markdown files in this app with a double-click." = "ダブルクリックでMarkdownファイルをこのAppで開きます。";
+"Open this link in another app?" = "このリンクを別のAppで開きますか？";
 "Open…" = "開く…";
 "Outdent" = "インデントを減らす";
 "Page Setup…" = "ページ設定…";
@@ -110,6 +114,7 @@
 "Print…" = "プリント…";
 "Quick Look previews" = "クイックルックのプレビュー";
 "Quit %@" = "%@を終了";
+"Quit and Install" = "終了してインストール";
 "Quote" = "引用";
 "Redo" = "やり直す";
 "Rename…" = "名称変更…";
@@ -138,8 +143,11 @@
 "System" = "システム";
 "text" = "テキスト";
 "The downloaded app is version %@, not %@." = "ダウンロードしたAppのバージョンは%1$@で、%2$@ではありません。";
+"The downloaded app isn't signed by the same developer." = "ダウンロードしたAppは同じデベロッパによって署名されていません。";
 "The downloaded app's code signature isn't valid." = "ダウンロードしたAppのコード署名が無効です。";
 "The downloaded disk image doesn't contain Markdown." = "ダウンロードしたディスクイメージにMarkdownが含まれていません。";
+"The downloaded update isn't signed by Markdown's developer." = "ダウンロードしたアップデートはMarkdownのデベロッパによって署名されていません。";
+"The update is ready to install" = "アップデートをインストールする準備ができました";
 "Transformations" = "変換";
 "Undo" = "取り消す";
 "unknown" = "不明";

@@ -82,12 +82,14 @@
 "Link" = "Link";
 "link" = "link";
 "Link…" = "Link…";
+"Load remote images" = "Carica immagini remote";
 "Make Default" = "Imposta come predefinita";
 "Make Lower Case" = "Tutto minuscole";
 "Make Upper Case" = "Tutto maiuscole";
 "Markdown %@ is available. You have %@." = "Markdown %1$@ è disponibile. Hai la versione %2$@.";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %1$@ è disponibile. Hai la versione %2$@. Vuoi installarla ora? Markdown verrà riavviato al termine.";
 "Markdown %@ is the newest version available." = "Markdown %@ è la versione più recente disponibile.";
+"Markdown %@ will be installed when you quit Markdown." = "Markdown %@ verrà installato quando esci da Markdown.";
 "Markdown editor" = "Editor Markdown";
 "Markdown Guide" = "Guida Markdown";
 "Minimize" = "Contrai";
@@ -98,9 +100,11 @@
 "Not checked yet" = "Non ancora verificato";
 "Nothing to preview yet" = "Ancora niente da mostrare in anteprima";
 "Numbered List" = "Elenco numerato";
+"Open" = "Apri";
 "Open files in" = "Apri i file in";
 "Open GitHub" = "Apri GitHub";
 "Open Markdown files in this app with a double-click." = "Apri i file Markdown in questa app con un doppio clic.";
+"Open this link in another app?" = "Aprire questo link in un’altra app?";
 "Open…" = "Apri…";
 "Outdent" = "Riduci rientro";
 "Page Setup…" = "Formato di stampa…";
@@ -110,6 +114,7 @@
 "Print…" = "Stampa…";
 "Quick Look previews" = "Anteprime di Quick Look";
 "Quit %@" = "Esci da %@";
+"Quit and Install" = "Esci e installa";
 "Quote" = "Citazione";
 "Redo" = "Ripristina";
 "Rename…" = "Rinomina…";
@@ -138,8 +143,11 @@
 "System" = "Sistema";
 "text" = "testo";
 "The downloaded app is version %@, not %@." = "L’app scaricata è la versione %1$@, non la %2$@.";
+"The downloaded app isn't signed by the same developer." = "L’app scaricata non è firmata dallo stesso sviluppatore.";
 "The downloaded app's code signature isn't valid." = "La firma del codice dell’app scaricata non è valida.";
 "The downloaded disk image doesn't contain Markdown." = "L’immagine disco scaricata non contiene Markdown.";
+"The downloaded update isn't signed by Markdown's developer." = "L’aggiornamento scaricato non è firmato dallo sviluppatore di Markdown.";
+"The update is ready to install" = "L’aggiornamento è pronto per l’installazione";
 "Transformations" = "Trasformazioni";
 "Undo" = "Annulla";
 "unknown" = "sconosciuta";

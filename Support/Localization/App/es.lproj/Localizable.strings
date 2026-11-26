@@ -82,12 +82,14 @@
 "Link" = "Enlace";
 "link" = "enlace";
 "Link…" = "Enlace…";
+"Load remote images" = "Cargar imágenes remotas";
 "Make Default" = "Establecer como predeterminada";
 "Make Lower Case" = "Convertir a minúsculas";
 "Make Upper Case" = "Convertir a mayúsculas";
 "Markdown %@ is available. You have %@." = "Markdown %1$@ está disponible. Tienes la versión %2$@.";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %1$@ está disponible. Tienes la versión %2$@. ¿Quieres instalarla ahora? Markdown se reiniciará al terminar.";
 "Markdown %@ is the newest version available." = "Markdown %@ es la versión más reciente disponible.";
+"Markdown %@ will be installed when you quit Markdown." = "Markdown %@ se instalará cuando salgas de Markdown.";
 "Markdown editor" = "Editor de Markdown";
 "Markdown Guide" = "Guía de Markdown";
 "Minimize" = "Minimizar";
@@ -98,9 +100,11 @@
 "Not checked yet" = "Aún no se ha comprobado";
 "Nothing to preview yet" = "Aún no hay nada que previsualizar";
 "Numbered List" = "Lista numerada";
+"Open" = "Abrir";
 "Open files in" = "Abrir archivos en";
 "Open GitHub" = "Abrir GitHub";
 "Open Markdown files in this app with a double-click." = "Abre los archivos Markdown en esta app con doble clic.";
+"Open this link in another app?" = "¿Abrir este enlace en otra app?";
 "Open…" = "Abrir…";
 "Outdent" = "Reducir sangría";
 "Page Setup…" = "Ajustar página…";
@@ -110,6 +114,7 @@
 "Print…" = "Imprimir…";
 "Quick Look previews" = "Previsualizaciones con Vista Rápida";
 "Quit %@" = "Salir de %@";
+"Quit and Install" = "Salir e instalar";
 "Quote" = "Cita";
 "Redo" = "Rehacer";
 "Rename…" = "Renombrar…";
@@ -138,8 +143,11 @@
 "System" = "Sistema";
 "text" = "texto";
 "The downloaded app is version %@, not %@." = "La app descargada es la versión %1$@, no la %2$@.";
+"The downloaded app isn't signed by the same developer." = "La app descargada no está firmada por el mismo desarrollador.";
 "The downloaded app's code signature isn't valid." = "La firma de código de la app descargada no es válida.";
 "The downloaded disk image doesn't contain Markdown." = "La imagen de disco descargada no contiene Markdown.";
+"The downloaded update isn't signed by Markdown's developer." = "La actualización descargada no está firmada por el desarrollador de Markdown.";
+"The update is ready to install" = "La actualización está lista para instalarse";
 "Transformations" = "Transformaciones";
 "Undo" = "Deshacer";
 "unknown" = "desconocida";

@@ -33,12 +33,12 @@ final class MarkdownDocument: NSDocument {
 
     // MARK: Reading & writing
 
+    /// The file's text encoding, kept so saving doesn't silently convert it.
+    private var fileEncoding: String.Encoding = .utf8
+
     override func read(from data: Data, ofType typeName: String) throws {
-        guard let text = String(data: data, encoding: .utf8)
-                ?? String(data: data, encoding: .utf16)
-                ?? String(data: data, encoding: .isoLatin1) else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
-        }
+        let (text, encoding) = TextDecoding.decode(data)
+        fileEncoding = encoding
         // Reverting or reloading after an external change: update the live editor.
         if Thread.isMainThread {
             let handled = MainActor.assumeIsolated { () -> Bool in
@@ -51,11 +51,22 @@ final class MarkdownDocument: NSDocument {
         initialText = text
     }
 
+    /// Saving reads the editor's text, which lives on the main thread.
+    override func canAsynchronouslyWrite(to url: URL, ofType typeName: String,
+                                         for saveOperation: NSDocument.SaveOperationType) -> Bool {
+        false
+    }
+
     override func data(ofType typeName: String) throws -> Data {
-        var text = initialText
-        if Thread.isMainThread {
-            text = MainActor.assumeIsolated { self.model?.text ?? self.initialText }
+        // Never write a stale copy: without the main thread there's no live text to save.
+        guard Thread.isMainThread else { throw CocoaError(.fileWriteUnknown) }
+        let text = MainActor.assumeIsolated { self.model?.text ?? self.initialText }
+        // Keep the file's encoding; text it can't represent (an emoji in a Latin-1
+        // file, say) is saved as UTF-8 from then on.
+        if fileEncoding != .utf8, let data = text.data(using: fileEncoding, allowLossyConversion: false) {
+            return data
         }
+        fileEncoding = .utf8
         return Data(text.utf8)
     }
 
@@ -123,14 +134,16 @@ final class MarkdownDocument: NSDocument {
                 info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
             }
 
-            let base = LocalResources.baseURL(for: fileURL?.deletingLastPathComponent())
-            let html = PreviewTheme.page(body: MarkdownRenderer.html(from: model.text), title: baseName, baseURL: base)
+            let folder = fileURL?.deletingLastPathComponent()
+            let base = LocalResources.baseURL(for: folder)
+            let html = PreviewTheme.page(body: MarkdownRenderer.html(from: model.text), title: baseName, baseURL: base,
+                                         policy: .app(remoteImages: Preferences.loadsRemoteImages))
             let renderer = PrintRenderer(width: info.paperSize.width - info.leftMargin - info.rightMargin)
             activeRenderer = renderer
 
             Task { @MainActor in
                 do {
-                    try await renderer.load(html: html, baseURL: base)
+                    try await renderer.load(html: html, baseURL: base, root: folder.map(DocumentFolder.root(for:)))
                 } catch {
                     self.finishPrinting()
                     self.presentError(error)
@@ -182,9 +195,12 @@ final class MarkdownDocument: NSDocument {
     @objc func copyHTML(_ sender: Any?) {
         MainActor.assumeIsolated {
             guard let model else { return }
+            // As HTML for apps that accept it, and as source text for everything else.
+            let html = MarkdownRenderer.html(from: model.text)
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(MarkdownRenderer.html(from: model.text), forType: .string)
+            pasteboard.setString(html, forType: .html)
+            pasteboard.setString(html, forType: .string)
         }
     }
 }

@@ -82,12 +82,14 @@
 "Link" = "Link";
 "link" = "link";
 "Link…" = "Link…";
+"Load remote images" = "Carregar imagens remotas";
 "Make Default" = "Tornar Padrão";
 "Make Lower Case" = "Converter em Minúsculas";
 "Make Upper Case" = "Converter em Maiúsculas";
 "Markdown %@ is available. You have %@." = "O Markdown %1$@ está disponível. Você tem a versão %2$@.";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "O Markdown %1$@ está disponível. Você tem a versão %2$@. Deseja instalá-lo agora? O Markdown será reiniciado ao terminar.";
 "Markdown %@ is the newest version available." = "O Markdown %@ é a versão mais recente disponível.";
+"Markdown %@ will be installed when you quit Markdown." = "O Markdown %@ será instalado quando você encerrar o Markdown.";
 "Markdown editor" = "Editor de Markdown";
 "Markdown Guide" = "Guia de Markdown";
 "Minimize" = "Minimizar";
@@ -98,9 +100,11 @@
 "Not checked yet" = "Ainda não verificado";
 "Nothing to preview yet" = "Nada para pré-visualizar ainda";
 "Numbered List" = "Lista Numerada";
+"Open" = "Abrir";
 "Open files in" = "Abrir arquivos em";
 "Open GitHub" = "Abrir GitHub";
 "Open Markdown files in this app with a double-click." = "Abra arquivos Markdown neste app com um clique duplo.";
+"Open this link in another app?" = "Abrir este link em outro app?";
 "Open…" = "Abrir…";
 "Outdent" = "Diminuir Recuo";
 "Page Setup…" = "Configurar Página…";
@@ -110,6 +114,7 @@
 "Print…" = "Imprimir…";
 "Quick Look previews" = "Pré-visualizações da Visualização Rápida";
 "Quit %@" = "Encerrar %@";
+"Quit and Install" = "Encerrar e Instalar";
 "Quote" = "Citação";
 "Redo" = "Refazer";
 "Rename…" = "Renomear…";
@@ -138,8 +143,11 @@
 "System" = "Sistema";
 "text" = "texto";
 "The downloaded app is version %@, not %@." = "O app baixado é a versão %1$@, não a %2$@.";
+"The downloaded app isn't signed by the same developer." = "O app baixado não foi assinado pelo mesmo desenvolvedor.";
 "The downloaded app's code signature isn't valid." = "A assinatura de código do app baixado não é válida.";
 "The downloaded disk image doesn't contain Markdown." = "A imagem de disco baixada não contém o Markdown.";
+"The downloaded update isn't signed by Markdown's developer." = "A atualização baixada não foi assinada pelo desenvolvedor do Markdown.";
+"The update is ready to install" = "A atualização está pronta para ser instalada";
 "Transformations" = "Transformações";
 "Undo" = "Desfazer";
 "unknown" = "desconhecida";

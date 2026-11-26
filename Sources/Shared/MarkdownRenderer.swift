@@ -13,10 +13,13 @@ import Foundation
 enum MarkdownRenderer {
 
     /// Renders `markdown` to an HTML fragment.
-    /// - Parameter imageSource: optional hook that can rewrite an image `src`
-    ///   (used by QuickLook to attach local images). Return `nil` to keep it.
-    static func html(from markdown: String, imageSource: ((String) -> String?)? = nil) -> String {
-        let source = preprocess(markdown)
+    /// - Parameters:
+    ///   - imageSource: optional hook that can rewrite an image `src`
+    ///     (used by QuickLook to attach local images). Return `nil` to keep it.
+    ///   - sanitize: clean raw HTML and keep only safe links and local images,
+    ///     for viewers that run scripts (QuickLook). See `HTMLSanitizer`.
+    static func html(from markdown: String, imageSource: ((String) -> String?)? = nil, sanitize: Bool = false) -> String {
+        let source = preprocess(markdown, imageSource: imageSource)
         let options = AttributedString.MarkdownParsingOptions(
             allowsExtendedAttributes: true,
             interpretedSyntax: .full,
@@ -25,7 +28,7 @@ enum MarkdownRenderer {
         guard let attributed = try? AttributedString(markdown: source, options: options) else {
             return "<pre><code>\(escape(markdown))</code></pre>"
         }
-        var builder = HTMLBuilder(imageSource: imageSource)
+        var builder = HTMLBuilder(imageSource: imageSource, sanitize: sanitize)
         builder.render(attributed)
         return builder.output
     }
@@ -34,7 +37,7 @@ enum MarkdownRenderer {
 
     /// Smooths over a few things Foundation's parser doesn't handle the way
     /// people expect from GitHub-flavoured Markdown.
-    static func preprocess(_ text: String) -> String {
+    static func preprocess(_ text: String, imageSource: ((String) -> String?)? = nil) -> String {
         var lines = text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -63,7 +66,7 @@ enum MarkdownRenderer {
                 continue
             }
             if !inFence, lines[i].contains("[![") {
-                lines[i] = replaceLinkedImages(in: lines[i])
+                lines[i] = replaceLinkedImages(in: lines[i], imageSource: imageSource)
             }
         }
         return lines.joined(separator: "\n")
@@ -73,14 +76,15 @@ enum MarkdownRenderer {
         pattern: #"\[!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)"#
     )
 
-    private static func replaceLinkedImages(in line: String) -> String {
+    private static func replaceLinkedImages(in line: String, imageSource: ((String) -> String?)?) -> String {
         let ns = line as NSString
         var result = ""
         var cursor = 0
         for match in linkedImage.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
             result += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
             let alt = ns.substring(with: match.range(at: 1))
-            let src = ns.substring(with: match.range(at: 2))
+            let raw = ns.substring(with: match.range(at: 2))
+            let src = imageSource?(raw) ?? raw
             let href = ns.substring(with: match.range(at: 3))
             result += "<a href=\"\(escapeAttribute(href))\"><img src=\"\(escapeAttribute(src))\" alt=\"\(escapeAttribute(alt))\"></a>"
             cursor = match.range.location + match.range.length
@@ -122,6 +126,7 @@ private struct HTMLBuilder {
     }
 
     let imageSource: ((String) -> String?)?
+    let sanitize: Bool
     private(set) var parts: [String] = []
     private var stack: [OpenBlock] = []
     private var openLink: URL?
@@ -130,8 +135,14 @@ private struct HTMLBuilder {
     private var pendingTaskCheck = false
     private var usedSlugs: [String: Int] = [:]
 
-    init(imageSource: ((String) -> String?)?) {
+    init(imageSource: ((String) -> String?)?, sanitize: Bool) {
         self.imageSource = imageSource
+        self.sanitize = sanitize
+    }
+
+    /// Raw HTML from the document: as written, or cleaned when sanitizing.
+    private func rawHTML(_ text: String) -> String {
+        sanitize ? HTMLSanitizer.clean(text) { imageSource?($0) } : text
     }
 
     var output: String { parts.joined() }
@@ -275,7 +286,7 @@ private struct HTMLBuilder {
         guard let inner = stack.last else {
             // Block-level HTML (or stray text) outside any block.
             parts.append(intent.contains(.blockHTML) || intent.contains(.inlineHTML)
-                         ? text : MarkdownRenderer.escape(text))
+                         ? rawHTML(text) : MarkdownRenderer.escape(text))
             return
         }
 
@@ -296,13 +307,13 @@ private struct HTMLBuilder {
         }
 
         if intent.contains(.inlineHTML) || intent.contains(.blockHTML) {
-            parts.append(text)
+            parts.append(rawHTML(text))
             return
         }
 
         if run.link != openLink {
             closeLink()
-            if let link = run.link {
+            if let link = run.link, !sanitize || HTMLSanitizer.isSafeLink(link.absoluteString) {
                 parts.append("<a href=\"\(MarkdownRenderer.escapeAttribute(link.absoluteString))\">")
                 openLink = link
             }
@@ -312,7 +323,9 @@ private struct HTMLBuilder {
             guard image != lastImage else { return }   // multi-run alt text
             lastImage = image
             let raw = image.absoluteString
-            let src = imageSource?(raw) ?? raw
+            let src = sanitize
+                ? HTMLSanitizer.safeImageSource(raw) { imageSource?($0) } ?? ""
+                : imageSource?(raw) ?? raw
             let alt = text == "\u{FFFC}" ? "" : text
             parts.append("<img src=\"\(MarkdownRenderer.escapeAttribute(src))\" alt=\"\(MarkdownRenderer.escapeAttribute(alt))\">")
             if case .header = inner.kind { headerText += alt }

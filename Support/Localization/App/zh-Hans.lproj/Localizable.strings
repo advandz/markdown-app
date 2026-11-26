@@ -82,12 +82,14 @@
 "Link" = "链接";
 "link" = "链接";
 "Link…" = "链接…";
+"Load remote images" = "载入远程图像";
 "Make Default" = "设为默认";
 "Make Lower Case" = "变为小写";
 "Make Upper Case" = "变为大写";
 "Markdown %@ is available. You have %@." = "Markdown %1$@现已推出。你的版本为%2$@。";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %1$@现已推出。你的版本为%2$@。要现在安装吗？安装完成后Markdown将会重新启动。";
 "Markdown %@ is the newest version available." = "Markdown %@是目前最新的版本。";
+"Markdown %@ will be installed when you quit Markdown." = "退出Markdown后将安装Markdown %@。";
 "Markdown editor" = "Markdown编辑器";
 "Markdown Guide" = "Markdown指南";
 "Minimize" = "最小化";
@@ -98,9 +100,11 @@
 "Not checked yet" = "尚未检查";
 "Nothing to preview yet" = "暂无可预览的内容";
 "Numbered List" = "编号列表";
+"Open" = "打开";
 "Open files in" = "打开文件时使用";
 "Open GitHub" = "打开GitHub";
 "Open Markdown files in this app with a double-click." = "连按Markdown文件即可在此App中打开。";
+"Open this link in another app?" = "要在其他App中打开此链接吗？";
 "Open…" = "打开…";
 "Outdent" = "减小缩进";
 "Page Setup…" = "页面设置…";
@@ -110,6 +114,7 @@
 "Print…" = "打印…";
 "Quick Look previews" = "快速查看预览";
 "Quit %@" = "退出%@";
+"Quit and Install" = "退出并安装";
 "Quote" = "引用";
 "Redo" = "重做";
 "Rename…" = "重新命名…";
@@ -138,8 +143,11 @@
 "System" = "系统";
 "text" = "文本";
 "The downloaded app is version %@, not %@." = "下载的App版本为%1$@，而不是%2$@。";
+"The downloaded app isn't signed by the same developer." = "下载的App不是由同一开发者签名的。";
 "The downloaded app's code signature isn't valid." = "下载的App的代码签名无效。";
 "The downloaded disk image doesn't contain Markdown." = "下载的磁盘映像不包含Markdown。";
+"The downloaded update isn't signed by Markdown's developer." = "下载的更新未经Markdown开发者签名。";
+"The update is ready to install" = "更新已准备好安装";
 "Transformations" = "转换";
 "Undo" = "撤销";
 "unknown" = "未知";

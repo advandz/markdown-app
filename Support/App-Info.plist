@@ -57,6 +57,8 @@
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>MarkdownUpdatePublicKey</key>
+	<string>5+vAbeIXsGsFJo7qOYciUSIuObG+PA90/skJgQoEQcs=</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

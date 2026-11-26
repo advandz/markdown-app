@@ -6,6 +6,8 @@
 //
 
 import AppKit
+import CryptoKit
+import Security
 import SwiftUI
 
 // MARK: - Versions
@@ -49,11 +51,6 @@ struct AppVersion: Comparable, CustomStringConvertible {
     static var current: AppVersion {
         AppVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") ?? AppVersion("0")!
     }
-
-    /// The newest release version among tag names, with the tag it came from.
-    static func newest(in tags: [String]) -> (tag: String, version: AppVersion)? {
-        tags.compactMap { tag in AppVersion(tag).map { (tag, $0) } }.max { $0.1 < $1.1 }
-    }
 }
 
 // MARK: - GitHub
@@ -64,7 +61,44 @@ struct AvailableUpdate {
     let notes: String
     /// The disk image attached to the tag's GitHub release, if there is one.
     let downloadURL: URL?
+    /// The disk image's Ed25519 signature, published next to it as `<name>.dmg.sig`.
+    let signature: Data?
     let pageURL: URL
+
+    /// Only an update that can be checked against the developer's key installs by itself.
+    var canVerify: Bool { downloadURL != nil && signature != nil && UpdateSignature.publicKey != nil }
+}
+
+/// Release disk images are signed with the developer's Ed25519 key
+/// (`Tools/SignUpdate.swift`, which keeps the private key in the Keychain).
+/// The app carries the public key, so an update that wasn't signed with that
+/// private key is never installed, whoever controls the download.
+enum UpdateSignature {
+    /// The public key in Info.plist (`MarkdownUpdatePublicKey`), base64-encoded.
+    static var publicKey: Data? {
+        (Bundle.main.object(forInfoDictionaryKey: "MarkdownUpdatePublicKey") as? String).flatMap(decodeKey)
+    }
+
+    static func decodeKey(_ base64: String) -> Data? {
+        guard let data = Data(base64Encoded: base64.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (try? Curve25519.Signing.PublicKey(rawRepresentation: data)) != nil else { return nil }
+        return data
+    }
+
+    /// A `.sig` file's contents: the base64 signature on one line.
+    static func decodeSignature(_ text: Data) -> Data? {
+        guard text.count <= 1024, let string = String(data: text, encoding: .utf8),
+              let signature = Data(base64Encoded: string.trimmingCharacters(in: .whitespacesAndNewlines)),
+              signature.count == 64 else { return nil }
+        return signature
+    }
+
+    /// Whether `file` was signed with the private key matching `publicKey`.
+    static func isValid(_ signature: Data, of file: URL, publicKey: Data) -> Bool {
+        guard let key = try? Curve25519.Signing.PublicKey(rawRepresentation: publicKey),
+              let data = try? Data(contentsOf: file, options: .mappedIfSafe) else { return false }
+        return key.isValidSignature(signature, for: data)
+    }
 }
 
 enum UpdateError: LocalizedError {
@@ -80,45 +114,51 @@ enum UpdateError: LocalizedError {
     }
 }
 
-private struct GitHubTag: Decodable { let name: String }
-
 private struct GitHubRelease: Decodable {
     struct Asset: Decodable {
         let name: String
         let browserDownloadURL: URL
         enum CodingKeys: String, CodingKey { case name, browserDownloadURL = "browser_download_url" }
     }
+    let tagName: String
     let body: String?
     let htmlURL: URL?
     let assets: [Asset]
-    enum CodingKeys: String, CodingKey { case body, assets, htmlURL = "html_url" }
+    enum CodingKeys: String, CodingKey { case body, assets, htmlURL = "html_url", tagName = "tag_name" }
 }
 
 // MARK: - Updater
 
-/// Checks the GitHub repository's tags for a newer version and offers to
-/// install it, remind later, or skip that version.
+/// Checks the GitHub repository's latest release for a newer version and
+/// offers to install it, remind later, or skip that version.
 @MainActor
 final class Updater: NSObject {
     static let shared = Updater()
-    static let repository = "advandz/markdown-app"
+    nonisolated static let repository = "advandz/markdown-app"
 
     private var isChecking = false
     private var pendingUpdate: AvailableUpdate?
     private var installer: UpdateInstaller?
     private var timer: Timer?
 
-    /// The API base URL. A hidden `UpdateFeedURL` default can point it elsewhere for testing.
+    /// The API base URL. A hidden `UpdateFeedURL` default can point it elsewhere
+    /// for testing, over HTTPS or to this Mac only. Downloads still have to come
+    /// from this repository's releases or this Mac (see `isTrusted`).
     private var feedBase: String {
-        UserDefaults.standard.string(forKey: "UpdateFeedURL")
-            ?? "https://api.github.com/repos/\(Self.repository)"
+        if let custom = UserDefaults.standard.string(forKey: "UpdateFeedURL"),
+           let url = URL(string: custom), url.scheme == "https" || Self.isLocal(url) {
+            return custom
+        }
+        return "https://api.github.com/repos/\(Self.repository)"
     }
 
     // MARK: Scheduling
 
-    /// Checks shortly after launch and then roughly once a day, when enabled.
+    /// When automatic checks are on: checks every time Markdown starts, then
+    /// once a day for as long as it stays open.
     func start() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.checkIfDue() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.checkAtLaunch() }
+        // Hourly ticks; a check only runs once a day has passed since the last one.
         timer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkIfDue() }
         }
@@ -132,6 +172,11 @@ final class Updater: NSObject {
                 self.present(update)
             }
         }
+    }
+
+    private func checkAtLaunch() {
+        guard UserDefaults.standard.bool(forKey: Preferences.checkForUpdates) else { return }
+        check(userInitiated: false)
     }
 
     private func checkIfDue() {
@@ -150,7 +195,8 @@ final class Updater: NSObject {
 
     func check(userInitiated: Bool) {
         if let installer {
-            installer.bringToFront()
+            // An update is downloading or waiting for Markdown to quit.
+            if userInitiated { installer.bringToFront() }
             return
         }
         guard !isChecking else { return }
@@ -181,26 +227,46 @@ final class Updater: NSObject {
         }
     }
 
+    /// The latest published release. GitHub leaves out drafts and pre-releases,
+    /// so a tag pushed before its release exists is never offered.
     private func fetchNewestUpdate() async throws -> AvailableUpdate? {
-        let tags: [GitHubTag] = try await get("tags?per_page=100")
-        guard let newest = AppVersion.newest(in: tags.map(\.name)) else { return nil }
+        guard let release: GitHubRelease = try await get("releases/latest"),
+              let version = AppVersion(release.tagName) else { return nil }
 
-        let encodedTag = newest.tag.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? newest.tag
-        let release: GitHubRelease? = try? await get("releases/tags/\(encodedTag)")
-        let dmg = release?.assets.first { $0.name.lowercased().hasSuffix(".dmg") }?.browserDownloadURL
-        let page = release?.htmlURL
+        let encodedTag = release.tagName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? release.tagName
+        let dmgAsset = release.assets.first { $0.name.lowercased().hasSuffix(".dmg") }
+        let dmg = dmgAsset.map(\.browserDownloadURL).flatMap { Self.isTrusted($0) ? $0 : nil }
+        let page = release.htmlURL
             ?? URL(string: "https://github.com/\(Self.repository)/releases/tag/\(encodedTag)")!
 
+        // The signature is only worth fetching for an update that would be offered.
+        var signature: Data?
+        if version > .current, let dmgAsset,
+           let sigAsset = release.assets.first(where: { $0.name == dmgAsset.name + ".sig" }),
+           Self.isTrusted(sigAsset.browserDownloadURL) {
+            signature = await fetchSignature(sigAsset.browserDownloadURL)
+        }
+
         return AvailableUpdate(
-            version: newest.version,
-            tag: newest.tag,
-            notes: release?.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-            downloadURL: dmg.map(Self.isTrusted) == true ? dmg : nil,
+            version: version,
+            tag: release.tagName,
+            notes: release.body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            downloadURL: dmg,
+            signature: signature,
             pageURL: page
         )
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
+    private func fetchSignature(_ url: URL) async -> Data? {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue("Markdown/\(AppVersion.current)", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return UpdateSignature.decodeSignature(data)
+    }
+
+    /// Fetches and decodes a feed resource; nil when it doesn't exist (no release yet).
+    private func get<T: Decodable>(_ path: String) async throws -> T? {
         guard let url = URL(string: "\(feedBase)/\(path)") else { throw UpdateError.server(0) }
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -208,14 +274,21 @@ final class Updater: NSObject {
         request.setValue("Markdown/\(AppVersion.current)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 404 { return nil }
         guard status == 200 else { throw UpdateError.server(status) }
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    /// Downloads must come over HTTPS (or from this Mac, when testing).
+    /// Updates download from this repository's GitHub releases over HTTPS
+    /// (or from this Mac, when testing).
     nonisolated static func isTrusted(_ url: URL) -> Bool {
-        if url.scheme == "https" { return true }
-        return url.scheme == "http" && ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "")
+        if isLocal(url) { return true }
+        return url.scheme == "https" && url.host?.lowercased() == "github.com"
+            && url.path.lowercased().hasPrefix("/\(repository.lowercased())/releases/download/")
+    }
+
+    nonisolated static func isLocal(_ url: URL) -> Bool {
+        ["http", "https"].contains(url.scheme ?? "") && ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "")
     }
 
     // MARK: Prompts
@@ -223,7 +296,9 @@ final class Updater: NSObject {
     /// "Install Update", "Later" or "Skip This Version".
     private func present(_ update: AvailableUpdate) {
         NSApp.activate()
-        let canInstall = update.downloadURL != nil && UpdateInstaller.canReplaceRunningApp
+        // Unsigned or unverifiable updates are offered as a download page instead,
+        // where macOS checks what the user downloads.
+        let canInstall = update.canVerify && UpdateInstaller.canReplaceRunningApp
 
         let alert = NSAlert()
         alert.icon = NSApp.applicationIconImage
@@ -410,6 +485,10 @@ final class UpdateInstaller: NSObject {
     }
 
     func bringToFront() {
+        if isWaitingForQuit {
+            promptToQuit()
+            return
+        }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -435,9 +514,11 @@ final class UpdateInstaller: NSObject {
             let bundleID = Bundle.main.bundleIdentifier ?? ""
             let version = update.version
             let work = workDirectory
+            let signature = update.signature
             Task.detached {
                 do {
-                    let staged = try Self.stage(dmg: dmg, work: work, version: version, bundleID: bundleID, target: target)
+                    let staged = try Self.stage(dmg: dmg, signature: signature, work: work, version: version,
+                                                bundleID: bundleID, target: target)
                     await MainActor.run { self.relaunch(replacing: target, with: staged) }
                 } catch {
                     await MainActor.run { self.fail(error) }
@@ -446,10 +527,17 @@ final class UpdateInstaller: NSObject {
         }
     }
 
-    /// Mounts the image, checks the app inside and copies it next to the
-    /// running app (same volume, so the final swap is a quick rename).
-    nonisolated private static func stage(dmg: URL, work: URL, version: AppVersion,
+    /// Checks the image's signature, mounts it, checks the app inside and copies
+    /// it next to the running app (same volume, so the final swap is a quick rename).
+    nonisolated private static func stage(dmg: URL, signature: Data?, work: URL, version: AppVersion,
                                           bundleID: String, target: URL) throws -> URL {
+        // First of all, and before anything inside it is touched: the disk image
+        // must be signed with the developer's key that this app carries.
+        guard let signature, let publicKey = UpdateSignature.publicKey,
+              UpdateSignature.isValid(signature, of: dmg, publicKey: publicKey) else {
+            throw UpdateError.invalidDownload(String(localized: "The downloaded update isn't signed by Markdown's developer."))
+        }
+
         let mountPoint = work.appendingPathComponent("mount", isDirectory: true)
         try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
         try run("/usr/bin/hdiutil", ["attach", dmg.path, "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mountPoint.path])
@@ -471,6 +559,11 @@ final class UpdateInstaller: NSObject {
         } catch {
             throw UpdateError.invalidDownload(String(localized: "The downloaded app's code signature isn't valid."))
         }
+        // Once Markdown is signed by a developer (rather than ad hoc), an update
+        // must be signed by the same developer, not merely be intact.
+        if let team = teamIdentifier(of: target), teamIdentifier(of: app) != team {
+            throw UpdateError.invalidDownload(String(localized: "The downloaded app isn't signed by the same developer."))
+        }
 
         let staged = target.deletingLastPathComponent()
             .appendingPathComponent(".\(target.deletingPathExtension().lastPathComponent)-update.app")
@@ -486,7 +579,8 @@ final class UpdateInstaller: NSObject {
             try Self.installScript.write(to: script, atomically: true, encoding: .utf8)
             let helper = Process()
             helper.executableURL = URL(fileURLWithPath: "/bin/sh")
-            helper.arguments = [script.path, String(ProcessInfo.processInfo.processIdentifier), target.path, staged.path]
+            helper.arguments = [script.path, String(ProcessInfo.processInfo.processIdentifier),
+                                target.path, staged.path, workDirectory.path]
             try helper.run()
         } catch {
             let reason = error.localizedDescription
@@ -494,22 +588,66 @@ final class UpdateInstaller: NSObject {
             return
         }
         progress.message = String(localized: "Restarting Markdown…")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        quitToInstall()
+    }
+
+    // MARK: Quitting
+
+    /// Set when the update is staged but quitting was put off.
+    private var isWaitingForQuit = false
+    /// Tells the helper to reopen Markdown: present only when the user chose to restart.
+    private var relaunchMarker: URL { workDirectory.appendingPathComponent("relaunch") }
+
+    /// Quits so the helper can swap the app in. A document can put the quit off
+    /// (asking about unsaved changes) or cancel it; the update then waits for
+    /// the next time Markdown quits.
+    private func quitToInstall() {
+        FileManager.default.createFile(atPath: relaunchMarker.path, contents: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             NSApp.terminate(nil)
+            // Still running, so the quit didn't go ahead straight away.
+            self?.watchForCancelledQuit(idleChecks: 0)
         }
+    }
+
+    /// The quit was cancelled once no save prompt has been up for two seconds.
+    private func watchForCancelledQuit(idleChecks: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self else { return }
+            let prompting = NSApp.modalWindow != nil || NSApp.windows.contains { $0.attachedSheet != nil }
+            let idle = prompting ? 0 : idleChecks + 1
+            if idle >= 2 { self.quitWasCancelled() } else { self.watchForCancelledQuit(idleChecks: idle) }
+        }
+    }
+
+    private func quitWasCancelled() {
+        try? FileManager.default.removeItem(at: relaunchMarker)
+        isWaitingForQuit = true
+        window?.close()
+        window = nil
+        promptToQuit()
+    }
+
+    /// The update is in place and installs whenever Markdown quits.
+    private func promptToQuit() {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.icon = NSApp.applicationIconImage
+        let version = update.version.description
+        alert.messageText = String(localized: "The update is ready to install")
+        alert.informativeText = String(localized: "Markdown \(version) will be installed when you quit Markdown.")
+        alert.addButton(withTitle: String(localized: "Quit and Install"))
+        alert.addButton(withTitle: String(localized: "Later"))
+        if alert.runModal() == .alertFirstButtonReturn { quitToInstall() }
     }
 
     private static let installScript = """
     #!/bin/sh
-    # Replaces Markdown.app once the running copy has quit, then relaunches it.
-    PID="$1"; TARGET="$2"; STAGED="$3"
-    [ -n "$PID" ] && [ -d "$TARGET" ] && [ -d "$STAGED" ] || exit 1
-    waited=0
-    while kill -0 "$PID" 2>/dev/null; do
-      waited=$((waited + 1))
-      if [ "$waited" -gt 600 ]; then rm -rf "${STAGED:?}"; exit 1; fi
-      sleep 0.5
-    done
+    # Replaces Markdown.app once the running copy has quit, reopens it if the
+    # user chose to restart, and removes the download.
+    PID="$1"; TARGET="$2"; STAGED="$3"; WORK="$4"
+    [ -n "$PID" ] && [ -d "$TARGET" ] && [ -d "$STAGED" ] && [ -d "$WORK" ] || exit 1
+    while kill -0 "$PID" 2>/dev/null; do sleep 0.5; done
     BACKUP="${TARGET:?}.previous"
     rm -rf "$BACKUP"
     if mv "$TARGET" "$BACKUP" && mv "$STAGED" "$TARGET"; then
@@ -520,8 +658,19 @@ final class UpdateInstaller: NSObject {
     fi
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$TARGET" >/dev/null 2>&1
     for extension in "$TARGET"/Contents/PlugIns/*.appex; do pluginkit -a "$extension" >/dev/null 2>&1; done
-    open "$TARGET"
+    [ -e "$WORK/relaunch" ] && open "$TARGET"
+    rm -rf "${WORK:?}"
     """
+
+    /// The Developer ID team that signed an app, or nil when it's signed ad hoc.
+    nonisolated private static func teamIdentifier(of app: URL) -> String? {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code else { return nil }
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let info = info as? [String: Any] else { return nil }
+        return info[kSecCodeInfoTeamIdentifier as String] as? String
+    }
 
     nonisolated private static func run(_ tool: String, _ arguments: [String]) throws {
         let process = Process()

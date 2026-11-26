@@ -82,12 +82,14 @@
 "Link" = "링크";
 "link" = "링크";
 "Link…" = "링크…";
+"Load remote images" = "원격 이미지 불러오기";
 "Make Default" = "기본으로 설정";
 "Make Lower Case" = "소문자로 만들기";
 "Make Upper Case" = "대문자로 만들기";
 "Markdown %@ is available. You have %@." = "Markdown %1$@을(를) 사용할 수 있습니다. 현재 버전은 %2$@입니다.";
 "Markdown %@ is available. You have %@. Would you like to install it now? Markdown will restart when it's done." = "Markdown %1$@을(를) 사용할 수 있습니다. 현재 버전은 %2$@입니다. 지금 설치하겠습니까? 완료되면 Markdown이 재시동됩니다.";
 "Markdown %@ is the newest version available." = "Markdown %@은(는) 사용 가능한 최신 버전입니다.";
+"Markdown %@ will be installed when you quit Markdown." = "Markdown을 종료하면 Markdown %@이(가) 설치됩니다.";
 "Markdown editor" = "Markdown 편집기";
 "Markdown Guide" = "Markdown 가이드";
 "Minimize" = "최소화";
@@ -98,9 +100,11 @@
 "Not checked yet" = "아직 확인하지 않음";
 "Nothing to preview yet" = "아직 미리 볼 내용이 없습니다";
 "Numbered List" = "번호 매기기 목록";
+"Open" = "열기";
 "Open files in" = "파일을 열 때 보기";
 "Open GitHub" = "GitHub 열기";
 "Open Markdown files in this app with a double-click." = "이중 클릭하여 Markdown 파일을 이 앱에서 엽니다.";
+"Open this link in another app?" = "이 링크를 다른 앱에서 열겠습니까?";
 "Open…" = "열기…";
 "Outdent" = "내어쓰기";
 "Page Setup…" = "페이지 설정…";
@@ -110,6 +114,7 @@
 "Print…" = "프린트…";
 "Quick Look previews" = "훑어보기 미리보기";
 "Quit %@" = "%@ 종료";
+"Quit and Install" = "종료 후 설치";
 "Quote" = "인용";
 "Redo" = "실행 복귀";
 "Rename…" = "이름 변경…";
@@ -138,8 +143,11 @@
 "System" = "시스템";
 "text" = "텍스트";
 "The downloaded app is version %@, not %@." = "다운로드한 앱의 버전이 %2$@이(가) 아닌 %1$@입니다.";
+"The downloaded app isn't signed by the same developer." = "다운로드한 앱이 동일한 개발자가 서명한 앱이 아닙니다.";
 "The downloaded app's code signature isn't valid." = "다운로드한 앱의 코드 서명이 유효하지 않습니다.";
 "The downloaded disk image doesn't contain Markdown." = "다운로드한 디스크 이미지에 Markdown이 없습니다.";
+"The downloaded update isn't signed by Markdown's developer." = "다운로드한 업데이트가 Markdown 개발자의 서명을 받지 않았습니다.";
+"The update is ready to install" = "업데이트를 설치할 준비가 되었습니다";
 "Transformations" = "변환";
 "Undo" = "실행 취소";
 "unknown" = "알 수 없음";

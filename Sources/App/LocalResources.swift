@@ -67,16 +67,25 @@ enum LocalResources {
         /// Requests in flight. The task objects stay on the main thread; only
         /// their IDs travel to the background read.
         private var pending: [ObjectIdentifier: any WKURLSchemeTask] = [:]
+        /// The folder each web view may read from (see `DocumentFolder`).
+        private let roots = NSMapTable<WKWebView, NSURL>.weakToStrongObjects()
+
+        /// Lets `webView` load files inside `root` only; nil serves nothing
+        /// (an untitled document has no folder of its own).
+        func allow(_ root: URL?, for webView: WKWebView) {
+            if let root { roots.setObject(root as NSURL, forKey: webView) } else { roots.removeObject(forKey: webView) }
+        }
 
         func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
             guard let url = task.request.url, let file = LocalResources.fileURL(for: url) else {
                 task.didFailWithError(URLError(.badURL))
                 return
             }
+            let root = roots.object(forKey: webView) as URL?
             let id = ObjectIdentifier(task)
             pending[id] = task
             DispatchQueue.global(qos: .userInitiated).async {
-                let result = Self.read(file)
+                let result = Self.read(file, inside: root)
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         // Gone if WebKit cancelled it meanwhile.
@@ -102,8 +111,9 @@ enum LocalResources {
             pending.removeValue(forKey: ObjectIdentifier(task))
         }
 
-        nonisolated private static func read(_ file: URL) -> Result<(Data, String), Error> {
-            guard let mimeType = LocalResources.mimeType(forExtension: file.pathExtension) else {
+        nonisolated private static func read(_ file: URL, inside root: URL?) -> Result<(Data, String), Error> {
+            guard let root, DocumentFolder.contains(root, file),
+                  let mimeType = LocalResources.mimeType(forExtension: file.pathExtension) else {
                 return .failure(URLError(.noPermissionsToReadFile))
             }
             do {
